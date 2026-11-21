@@ -369,6 +369,11 @@ public sealed class WebPresentationController : IPresentationController, IWebInt
 
     private static string GetSoundUri(string sound)
     {
+        if (string.IsNullOrWhiteSpace(sound))
+        {
+            return "";
+        }
+
         if (!Uri.TryCreate(sound, UriKind.RelativeOrAbsolute, out var uri))
         {
             return sound;

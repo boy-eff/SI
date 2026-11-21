@@ -100,6 +100,9 @@ internal sealed class RemoteBoardServer : IAsyncDisposable
     private readonly SemaphoreSlim _sendLock = new(1, 1);
     private readonly ConcurrentDictionary<string, string> _mediaIdsByPath = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, string> _mediaPathsById = new();
+    private readonly ConcurrentDictionary<string, byte> _videoIds = new();
+    private readonly ConcurrentDictionary<string, Lazy<Task<string>>> _preparedVideos = new();
+    private readonly string _mediaTempDirectory = Path.Combine(Path.GetTempPath(), $"simulator-media-{Guid.NewGuid():N}");
     private WebSocket? _client;
 
     /// <summary>
@@ -146,11 +149,16 @@ internal sealed class RemoteBoardServer : IAsyncDisposable
 
         var contentTypes = new FileExtensionContentTypeProvider();
 
-        app.MapGet("/media/{id}", (string id) =>
+        app.MapGet("/media/{id}", async (string id) =>
         {
             if (!server._mediaPathsById.TryGetValue(id, out var path) || !File.Exists(path))
             {
                 return Results.NotFound();
+            }
+
+            if (server._videoIds.ContainsKey(id))
+            {
+                path = await server.GetBrowserCompatibleVideoAsync(id, path);
             }
 
             if (!contentTypes.TryGetContentType(path, out var contentType))
@@ -341,7 +349,12 @@ internal sealed class RemoteBoardServer : IAsyncDisposable
             case JsonObject obj:
                 foreach (var key in obj.Select(p => p.Key).ToArray())
                 {
-                    if (obj[key] is { } child && TryRewriteValue(child) is { } replacement)
+                    var isVideo = key.Equals("value", StringComparison.OrdinalIgnoreCase)
+                        && obj["type"] is JsonValue type
+                        && type.TryGetValue<int>(out var contentType)
+                        && contentType == 3;
+
+                    if (obj[key] is { } child && TryRewriteValue(child, isVideo) is { } replacement)
                     {
                         obj[key] = replacement;
                     }
@@ -356,7 +369,7 @@ internal sealed class RemoteBoardServer : IAsyncDisposable
             case JsonArray array:
                 for (var i = 0; i < array.Count; i++)
                 {
-                    if (array[i] is { } child && TryRewriteValue(child) is { } replacement)
+                    if (array[i] is { } child && TryRewriteValue(child, false) is { } replacement)
                     {
                         array[i] = replacement;
                     }
@@ -370,7 +383,7 @@ internal sealed class RemoteBoardServer : IAsyncDisposable
         }
     }
 
-    private JsonNode? TryRewriteValue(JsonNode node)
+    private JsonNode? TryRewriteValue(JsonNode node, bool isVideo)
     {
         if (node is not JsonValue value || !value.TryGetValue<string>(out var text) || !TryGetLocalPath(text, out var path))
         {
@@ -380,7 +393,120 @@ internal sealed class RemoteBoardServer : IAsyncDisposable
         var id = _mediaIdsByPath.GetOrAdd(path, _ => Convert.ToHexString(RandomNumberGenerator.GetBytes(16)));
         _mediaPathsById[id] = path;
 
+        if (isVideo)
+        {
+            _videoIds[id] = 0;
+        }
+
         return JsonValue.Create($"/media/{id}");
+    }
+
+    private Task<string> GetBrowserCompatibleVideoAsync(string id, string sourcePath) =>
+        _preparedVideos.GetOrAdd(
+            id,
+            _ => new Lazy<Task<string>>(
+                () => PrepareVideoAsync(id, sourcePath),
+                LazyThreadSafetyMode.ExecutionAndPublication)).Value;
+
+    private async Task<string> PrepareVideoAsync(string id, string sourcePath)
+    {
+        string? temporaryPath = null;
+
+        try
+        {
+            if (await IsBrowserCompatibleAsync(sourcePath))
+            {
+                return sourcePath;
+            }
+
+            Directory.CreateDirectory(_mediaTempDirectory);
+            var outputPath = Path.Combine(_mediaTempDirectory, $"{id}.mp4");
+            temporaryPath = outputPath + ".tmp";
+            var startInfo = CreateToolStartInfo("ffmpeg");
+            foreach (var argument in new[]
+            {
+                "-y", "-i", sourcePath, "-map", "0:v:0", "-map", "0:a?",
+                "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+                "-pix_fmt", "yuv420p", "-movflags", "+faststart",
+                "-c:a", "aac", "-b:a", "160k", "-f", "mp4", temporaryPath,
+            })
+            {
+                startInfo.ArgumentList.Add(argument);
+            }
+
+            using var process = Process.Start(startInfo) ?? throw new InvalidOperationException("Could not start ffmpeg");
+            var standardErrorTask = process.StandardError.ReadToEndAsync();
+            await process.WaitForExitAsync();
+            var standardError = await standardErrorTask;
+
+            if (process.ExitCode != 0 || !File.Exists(temporaryPath))
+            {
+                throw new InvalidOperationException($"ffmpeg exited with code {process.ExitCode}: {standardError}");
+            }
+
+            File.Move(temporaryPath, outputPath, true);
+            temporaryPath = null;
+            return outputPath;
+        }
+        catch (Exception exc)
+        {
+            Trace.TraceError($"Could not prepare video '{sourcePath}': {exc}");
+            return sourcePath;
+        }
+        finally
+        {
+            if (temporaryPath != null)
+            {
+                try
+                {
+                    File.Delete(temporaryPath);
+                }
+                catch (IOException)
+                {
+                }
+            }
+        }
+    }
+
+    private static async Task<bool> IsBrowserCompatibleAsync(string sourcePath)
+    {
+        var startInfo = CreateToolStartInfo("ffprobe");
+        foreach (var argument in new[] { "-v", "error", "-show_streams", "-of", "json", sourcePath })
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
+
+        using var process = Process.Start(startInfo) ?? throw new InvalidOperationException("Could not start ffprobe");
+        var output = await process.StandardOutput.ReadToEndAsync();
+        await process.WaitForExitAsync();
+
+        if (process.ExitCode != 0)
+        {
+            return false;
+        }
+
+        using var document = JsonDocument.Parse(output);
+        var streams = document.RootElement.GetProperty("streams").EnumerateArray().ToArray();
+        var video = streams.FirstOrDefault(stream => stream.GetProperty("codec_type").GetString() == "video");
+        var audio = streams.FirstOrDefault(stream => stream.GetProperty("codec_type").GetString() == "audio");
+
+        return video.ValueKind != JsonValueKind.Undefined
+            && video.GetProperty("codec_name").GetString() == "h264"
+            && video.TryGetProperty("pix_fmt", out var pixelFormat)
+            && pixelFormat.GetString() == "yuv420p"
+            && (audio.ValueKind == JsonValueKind.Undefined || audio.GetProperty("codec_name").GetString() == "aac");
+    }
+
+    private static ProcessStartInfo CreateToolStartInfo(string toolName)
+    {
+        var bundledPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, toolName);
+        return new ProcessStartInfo(File.Exists(bundledPath) ? bundledPath : toolName)
+        {
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+        };
     }
 
     private static bool TryGetLocalPath(string text, out string path)
@@ -425,5 +551,31 @@ internal sealed class RemoteBoardServer : IAsyncDisposable
 
         await _app.StopAsync();
         await _app.DisposeAsync();
+
+        var pendingConversions = _preparedVideos.Values
+            .Where(preparedVideo => preparedVideo.IsValueCreated)
+            .Select(preparedVideo => preparedVideo.Value)
+            .ToArray();
+
+        if (pendingConversions.Length > 0)
+        {
+            await Task.WhenAll(pendingConversions);
+        }
+
+        try
+        {
+            Directory.Delete(_mediaTempDirectory, true);
+        }
+        catch (DirectoryNotFoundException)
+        {
+        }
+        catch (IOException exc)
+        {
+            Trace.TraceError($"Could not remove temporary media directory '{_mediaTempDirectory}': {exc}");
+        }
+        catch (UnauthorizedAccessException exc)
+        {
+            Trace.TraceError($"Could not remove temporary media directory '{_mediaTempDirectory}': {exc}");
+        }
     }
 }

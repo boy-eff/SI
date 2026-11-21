@@ -39,11 +39,19 @@ dotnet run --project src/SImulator/SImulator.Avalonia/SImulator.Avalonia.csproj 
 
 ### Linux AppImage
 
-Install `appimagetool`, then build the self-contained x86_64 image:
+Install `appimagetool` and provide portable Linux `ffmpeg` and `ffprobe` binaries, then build the self-contained x86_64 image:
 
 ```bash
-APPIMAGETOOL=/path/to/appimagetool src/SImulator/SImulator.Avalonia/build-appimage.sh
+APPIMAGETOOL=/path/to/appimagetool \
+FFMPEG=/path/to/ffmpeg \
+FFPROBE=/path/to/ffprobe \
+src/SImulator/SImulator.Avalonia/build-appimage.sh
 ```
+
+Static or otherwise portable FFmpeg binaries are recommended. The binaries are copied into the AppImage and used to
+convert package videos that browsers cannot reliably play (for example, 10-bit AV1) to H.264/AAC. Converted files exist
+only in the system temporary directory while SImulator is running and are removed on exit; source `.siq` packages are
+not modified.
 
 The result is written to `bin/appimage/`. On Arch-based distributions, including CachyOS,
 install `webkit2gtk-4.1` for the embedded board. If FUSE execution is unavailable, extract the

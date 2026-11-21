@@ -17,6 +17,8 @@ APPDIR="$OUT/SImulator.AppDir"
 PUBLISH="$APPDIR/usr/bin"
 APPIMAGE="$REPO/bin/appimage/SImulator-$VERSION-x86_64.AppImage"
 DOTNET="${DOTNET:-dotnet}"
+FFMPEG="${FFMPEG:-$(command -v ffmpeg || true)}"
+FFPROBE="${FFPROBE:-$(command -v ffprobe || true)}"
 NUGET_PACKAGES="${NUGET_PACKAGES:-/tmp/simulator-appimage-nuget}"
 NUGET_HTTP_CACHE_PATH="${NUGET_HTTP_CACHE_PATH:-/tmp/simulator-appimage-http-cache}"
 
@@ -28,6 +30,14 @@ NUGET_PACKAGES="$NUGET_PACKAGES" NUGET_HTTP_CACHE_PATH="$NUGET_HTTP_CACHE_PATH" 
     -c Release -r "$RID" --self-contained true \
     -p:PublishSingleFile=false -p:UseAppHost=true -p:SignAssembly=false \
     -o "$PUBLISH"
+
+if [[ -z "$FFMPEG" || -z "$FFPROBE" ]]; then
+    echo "ffmpeg and ffprobe were not found. Set FFMPEG and FFPROBE to portable Linux binaries." >&2
+    exit 4
+fi
+
+install -Dm755 "$FFMPEG" "$PUBLISH/ffmpeg"
+install -Dm755 "$FFPROBE" "$PUBLISH/ffprobe"
 
 install -Dm644 "$HERE/../SImulator/Images/logo.png" "$APPDIR/SImulator.png"
 install -Dm644 "$HERE/../SImulator/Images/logo.png" "$APPDIR/usr/share/icons/hicolor/256x256/apps/SImulator.png"
