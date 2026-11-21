@@ -40,7 +40,7 @@ internal sealed class AvaloniaPlatformManager : PlatformManager, IPlatformServic
     internal void ControlMedia(string action) =>
         (_boardWindow?.Server ?? RemoteBoardHost.Instance.Server)?.ControlMedia(action);
 
-    public override ButtonManagerFactory ButtonManagerFactory => _buttonManagerFactory;
+    public ButtonManagerFactory ButtonManagerFactory => _buttonManagerFactory;
 
     public override void CreatePlayersView(object dataContext)
     {
@@ -103,11 +103,11 @@ internal sealed class AvaloniaPlatformManager : PlatformManager, IPlatformServic
         ];
     }
 
-    public override string[] GetFonts() => [.. FontManager.Current.SystemFonts.Select(font => font.Name).Order()];
+    public string[] GetFonts() => [.. FontManager.Current.SystemFonts.Select(font => font.Name).Order()];
 
     public override string[] GetLocalComputers() => [];
 
-    public override string[] GetComPorts() => SerialPort.GetPortNames();
+    public string[] GetComPorts() => SerialPort.GetPortNames();
 
     public override bool IsEscapeKey(GameKey key) => (Key)key == Key.Escape;
 
@@ -194,7 +194,7 @@ internal sealed class AvaloniaPlatformManager : PlatformManager, IPlatformServic
         }
     }
 
-    public override void PlaySound(string name, Action? onFinish = null)
+    public void PlaySound(string name, Action? onFinish = null)
     {
         StopSound();
 
@@ -212,9 +212,18 @@ internal sealed class AvaloniaPlatformManager : PlatformManager, IPlatformServic
 
         try
         {
+            var startInfo = CreateAudioPlayerStartInfo(source);
+
+            if (startInfo == null)
+            {
+                Trace.TraceWarning("No supported audio player was found. Install PipeWire, PulseAudio, FFmpeg, or ALSA utilities.");
+                onFinish?.Invoke();
+                return;
+            }
+
             var process = new Process
             {
-                StartInfo = new ProcessStartInfo("/usr/bin/afplay") { ArgumentList = { source }, UseShellExecute = false, CreateNoWindow = true },
+                StartInfo = startInfo,
                 EnableRaisingEvents = true,
             };
 
@@ -235,6 +244,62 @@ internal sealed class AvaloniaPlatformManager : PlatformManager, IPlatformServic
         {
             Trace.TraceError(exc.ToString());
         }
+    }
+
+    private static ProcessStartInfo? CreateAudioPlayerStartInfo(string source)
+    {
+        if (OperatingSystem.IsMacOS() && File.Exists("/usr/bin/afplay"))
+        {
+            return CreateProcessStartInfo("/usr/bin/afplay", source);
+        }
+
+        if (!OperatingSystem.IsLinux())
+        {
+            return null;
+        }
+
+        foreach (var (executable, arguments) in new[]
+        {
+            ("pw-play", new[] { source }),
+            ("paplay", new[] { source }),
+            ("ffplay", new[] { "-nodisp", "-autoexit", "-loglevel", "error", source }),
+            ("aplay", new[] { source }),
+        })
+        {
+            if (FindExecutable(executable) is { } executablePath)
+            {
+                return CreateProcessStartInfo(executablePath, arguments);
+            }
+        }
+
+        return null;
+    }
+
+    private static ProcessStartInfo CreateProcessStartInfo(string executable, params string[] arguments)
+    {
+        var startInfo = new ProcessStartInfo(executable) { UseShellExecute = false, CreateNoWindow = true };
+
+        foreach (var argument in arguments)
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
+
+        return startInfo;
+    }
+
+    private static string? FindExecutable(string executable)
+    {
+        var path = Environment.GetEnvironmentVariable("PATH");
+
+        if (string.IsNullOrEmpty(path))
+        {
+            return null;
+        }
+
+        return path
+            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
+            .Select(directory => Path.Combine(directory, executable))
+            .FirstOrDefault(File.Exists);
     }
 
     private void StopSound()
@@ -269,9 +334,9 @@ internal sealed class AvaloniaPlatformManager : PlatformManager, IPlatformServic
         return GameLogger.Create(Path.Combine(folder, $"{DateTime.Now:yyyy-MM-dd HH.mm.ss}.log"));
     }
 
-    public override void ClearMedia() => StopSound();
+    public void ClearMedia() => StopSound();
 
-    public override void InitSettings(AppSettings defaultSettings)
+    public void InitSettings(AppSettings defaultSettings)
     {
     }
 

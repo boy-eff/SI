@@ -1,6 +1,6 @@
 # SImulator.Avalonia (preview)
 
-Cross-platform version of SImulator built with [Avalonia](https://avaloniaui.net/). Currently developed and tested on macOS; Windows support (sounds, WebView2 board) is planned.
+Cross-platform version of SImulator built with [Avalonia](https://avaloniaui.net/). It is tested on macOS and can be built for Linux; Windows support (sounds, WebView2 board) is planned.
 Version 0.1 is a preview: the main game flow works, some features of the Windows version are not ported yet.
 
 ## Architecture
@@ -8,7 +8,7 @@ Version 0.1 is a preview: the main game flow works, some features of the Windows
 - Game logic is shared with the Windows version: `SImulator.ViewModel` and platform-independent files of `SImulator` (linked in `SImulator.Avalonia.csproj`).
 - The control window (`Views/MainWindow.axaml`) is an Avalonia port of the WPF `CommandWindow` (start, game, players, buttons).
 - The game board is the same `webtable` web board as in the Windows version. It is shown in a native window with the system WebKit (`Avalonia.Controls.WebView`) and connected through `RemoteBoardServer` (loopback HTTP + WebSocket bridge, session token). The "Browser" screen opens the same board in an external browser.
-- Platform services (screens, file dialogs, sounds via `afplay`, timers, keyboard) are in `Implementation/AvaloniaPlatformManager.cs`.
+- Platform services (screens, file dialogs, sound playback, timers, keyboard) are in `Implementation/AvaloniaPlatformManager.cs`.
 
 ## What works
 
@@ -19,6 +19,7 @@ Version 0.1 is a preview: the main game flow works, some features of the Windows
 - Round and question timers with pause
 - Player buttons: keyboard (while a SImulator window is active), web buttons
 - Russian and English UI (shared resources)
+- Sound playback on Linux through PipeWire, PulseAudio, FFmpeg, or ALSA utilities
 
 ## Not ported yet
 
@@ -35,6 +36,18 @@ Requires .NET 10 SDK.
 dotnet build src/SImulator/SImulator.Avalonia/SImulator.Avalonia.csproj
 dotnet run --project src/SImulator/SImulator.Avalonia/SImulator.Avalonia.csproj -- path/to/package.siq
 ```
+
+### Linux AppImage
+
+Install `appimagetool`, then build the self-contained x86_64 image:
+
+```bash
+APPIMAGETOOL=/path/to/appimagetool src/SImulator/SImulator.Avalonia/build-appimage.sh
+```
+
+The result is written to `bin/appimage/`. On Arch-based distributions, including CachyOS,
+install `webkit2gtk-4.1` for the embedded board. If FUSE execution is unavailable, extract the
+image with `--appimage-extract` and run `squashfs-root/AppRun`.
 
 To build `SImulator.app` and a `.dmg` (ad-hoc signed, Apple Silicon by default):
 

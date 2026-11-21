@@ -506,6 +506,9 @@ internal sealed class GameEngineController : IQuestionEnginePlayHandler, ISIEngi
 
     public void OnQuestionAborted() { }
 
+    public void OnUnsupportedQuestion() =>
+        GameViewModel.ShowError("This question type is not supported by SImulator.");
+
     public void OnPackage(Package package)
     {
         var logo = package.LogoItem;

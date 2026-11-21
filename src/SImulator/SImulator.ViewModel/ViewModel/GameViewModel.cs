@@ -2126,6 +2126,8 @@ public sealed class GameViewModel : INotifyPropertyChanged, IButtonManagerListen
 
     private void OnError(string error) => Error?.Invoke(error);
 
+    internal void ShowError(string error) => _platformService.ShowMessage(error);
+
     public bool OnKeyPressed(GameKey key)
     {
         var index = Settings.Model.PlayerKeys2.IndexOf(key);
