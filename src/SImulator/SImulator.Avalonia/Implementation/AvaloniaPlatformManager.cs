@@ -91,17 +91,7 @@ internal sealed class AvaloniaPlatformManager : PlatformManager, IPlatformServic
         }
     }
 
-    public override IDisplayDescriptor[] GetScreens()
-    {
-        var screens = MainWindow?.Screens.All ?? [];
-
-        return
-        [
-            .. screens.OrderByDescending(screen => screen.IsPrimary).Select(screen => (IDisplayDescriptor)new AvaloniaScreenDescriptor(screen)),
-            AvaloniaScreenDescriptor.WindowScreen,
-            BrowserDisplayDescriptor.Instance,
-        ];
-    }
+    public override IDisplayDescriptor[] GetScreens() => [BrowserDisplayDescriptor.Instance];
 
     public string[] GetFonts() => [.. FontManager.Current.SystemFonts.Select(font => font.Name).Order()];
 

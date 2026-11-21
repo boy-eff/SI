@@ -20,12 +20,12 @@ public sealed class AppSettings : INotifyPropertyChanged
 
     private const int RoundTimeDefaultValue = 600;
 
-    private bool _selfHostedMode;
+    private bool _selfHostedMode = true;
 
     /// <summary>
     /// Gets or sets whether the game is hosted manually for players gathered in one place.
     /// </summary>
-    [DefaultValue(false)]
+    [DefaultValue(true)]
     public bool SelfHostedMode
     {
         get => _selfHostedMode;

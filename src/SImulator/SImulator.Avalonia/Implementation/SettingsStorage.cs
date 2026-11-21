@@ -24,7 +24,9 @@ internal static class SettingsStorage
             if (File.Exists(SettingsFile))
             {
                 using var stream = File.OpenRead(SettingsFile);
-                return JsonSerializer.Deserialize<AppSettings>(stream) ?? new AppSettings();
+                var settings = JsonSerializer.Deserialize<AppSettings>(stream) ?? new AppSettings();
+                settings.SelfHostedMode = true;
+                return settings;
             }
         }
         catch (Exception exc)

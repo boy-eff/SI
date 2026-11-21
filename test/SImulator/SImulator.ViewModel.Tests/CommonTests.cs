@@ -56,6 +56,12 @@ public sealed class CommonTests
     }
 
     [Test]
+    public void SelfHostedMode_IsEnabledByDefault()
+    {
+        Assert.That(new AppSettings().SelfHostedMode, Is.True);
+    }
+
+    [Test]
     public void SelfHostedMode_OverridesAutomaticRulesWithoutChangingStoredValues()
     {
         var settings = new AppSettings
