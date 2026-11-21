@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Text.Json.Serialization;
 using System.Xml.Serialization;
 
 namespace SImulator.ViewModel.Model;
@@ -18,6 +19,55 @@ public sealed class AppSettings : INotifyPropertyChanged
     #region Settings
 
     private const int RoundTimeDefaultValue = 600;
+
+    private bool _selfHostedMode;
+
+    /// <summary>
+    /// Gets or sets whether the game is hosted manually for players gathered in one place.
+    /// </summary>
+    [DefaultValue(false)]
+    public bool SelfHostedMode
+    {
+        get => _selfHostedMode;
+        set
+        {
+            if (_selfHostedMode != value)
+            {
+                _selfHostedMode = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    [XmlIgnore, JsonIgnore]
+    public int EffectiveRoundTime => SelfHostedMode ? int.MaxValue : RoundTime;
+
+    [XmlIgnore, JsonIgnore]
+    public int EffectiveQuestionTime => SelfHostedMode ? int.MaxValue : ThinkingTime;
+
+    [XmlIgnore, JsonIgnore]
+    public int EffectiveThinkingTime => SelfHostedMode ? int.MaxValue : ThinkingTime2;
+
+    [XmlIgnore, JsonIgnore]
+    public int EffectiveSpecialQuestionThinkingTime => SelfHostedMode ? int.MaxValue : SpecialQuestionThinkingTime;
+
+    [XmlIgnore, JsonIgnore]
+    public int EffectiveFinalQuestionThinkingTime => SelfHostedMode ? int.MaxValue : FinalQuestionThinkingTime;
+
+    [XmlIgnore, JsonIgnore]
+    public bool EffectiveFalseStart => !SelfHostedMode && FalseStart;
+
+    [XmlIgnore, JsonIgnore]
+    public bool EffectivePlaySpecials => !SelfHostedMode && PlaySpecials;
+
+    [XmlIgnore, JsonIgnore]
+    public bool EffectiveAutomaticGame => !SelfHostedMode && AutomaticGame;
+
+    [XmlIgnore, JsonIgnore]
+    public bool EffectiveUseSIGameEngine => !SelfHostedMode && UseSIGameEngine;
+
+    [XmlIgnore, JsonIgnore]
+    public PlayerKeysModes EffectiveUsePlayersKeys => SelfHostedMode ? PlayerKeysModes.None : UsePlayersKeys;
 
     private int _roundTime = RoundTimeDefaultValue;
 

@@ -1,4 +1,5 @@
 using NUnit.Framework;
+using SImulator.ViewModel.Core;
 using SImulator.ViewModel.Model;
 using SImulator.ViewModel.PlatformSpecific;
 
@@ -52,5 +53,54 @@ public sealed class CommonTests
             // If RoundInfo isn't populated yet, that's okay - just verify game structure
             Assert.That(game.LocalInfo, Is.Not.Null, "LocalInfo should be initialized");
         }
+    }
+
+    [Test]
+    public void SelfHostedMode_OverridesAutomaticRulesWithoutChangingStoredValues()
+    {
+        var settings = new AppSettings
+        {
+            SelfHostedMode = true,
+            RoundTime = 123,
+            ThinkingTime = 7,
+            ThinkingTime2 = 17,
+            SpecialQuestionThinkingTime = 27,
+            FinalQuestionThinkingTime = 37,
+            FalseStart = true,
+            PlaySpecials = true,
+            AutomaticGame = true,
+            UseSIGameEngine = true,
+            UsePlayersKeys = PlayerKeysModes.Keyboard,
+        };
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(settings.EffectiveRoundTime, Is.EqualTo(int.MaxValue));
+            Assert.That(settings.EffectiveQuestionTime, Is.EqualTo(int.MaxValue));
+            Assert.That(settings.EffectiveThinkingTime, Is.EqualTo(int.MaxValue));
+            Assert.That(settings.EffectiveSpecialQuestionThinkingTime, Is.EqualTo(int.MaxValue));
+            Assert.That(settings.EffectiveFinalQuestionThinkingTime, Is.EqualTo(int.MaxValue));
+            Assert.That(settings.EffectiveFalseStart, Is.False);
+            Assert.That(settings.EffectivePlaySpecials, Is.False);
+            Assert.That(settings.EffectiveAutomaticGame, Is.False);
+            Assert.That(settings.EffectiveUseSIGameEngine, Is.False);
+            Assert.That(settings.EffectiveUsePlayersKeys, Is.EqualTo(PlayerKeysModes.None));
+        });
+
+        settings.SelfHostedMode = false;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(settings.EffectiveRoundTime, Is.EqualTo(123));
+            Assert.That(settings.EffectiveQuestionTime, Is.EqualTo(7));
+            Assert.That(settings.EffectiveThinkingTime, Is.EqualTo(17));
+            Assert.That(settings.EffectiveSpecialQuestionThinkingTime, Is.EqualTo(27));
+            Assert.That(settings.EffectiveFinalQuestionThinkingTime, Is.EqualTo(37));
+            Assert.That(settings.EffectiveFalseStart, Is.True);
+            Assert.That(settings.EffectivePlaySpecials, Is.True);
+            Assert.That(settings.EffectiveAutomaticGame, Is.True);
+            Assert.That(settings.EffectiveUseSIGameEngine, Is.True);
+            Assert.That(settings.EffectiveUsePlayersKeys, Is.EqualTo(PlayerKeysModes.Keyboard));
+        });
     }
 }

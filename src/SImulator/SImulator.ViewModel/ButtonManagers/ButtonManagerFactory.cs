@@ -17,7 +17,7 @@ public class ButtonManagerFactory
     /// <param name="platformService">Platform service.</param>
     /// <returns>Created button manager.</returns>
     public virtual Task<IButtonManager?> CreateAsync(AppSettings settings, IButtonManagerListener buttonManagerListener, IPlatformService platformService) =>
-        Task.FromResult<IButtonManager?>(settings.UsePlayersKeys switch
+        Task.FromResult<IButtonManager?>(settings.EffectiveUsePlayersKeys switch
         {
             PlayerKeysModes.External => new EmptyButtonManager(buttonManagerListener),
             _ => null,

@@ -622,7 +622,7 @@ public sealed class GameViewModel : INotifyPropertyChanged, IButtonManagerListen
 
     private void OnIsPausedChanged()
     {
-        PresentationController.SetPause(IsPaused, QuestionTime * 10);
+        PresentationController.SetPause(IsPaused, ToTenths(QuestionTime));
 
         if (IsPaused && ActiveQuestionCommand == StopQuestionTimer)
         {
@@ -1251,7 +1251,7 @@ public sealed class GameViewModel : INotifyPropertyChanged, IButtonManagerListen
         }
         else if (arg == null)
         {
-            PresentationController.PauseTimer(QuestionTime * 10);
+            PresentationController.PauseTimer(ToTenths(QuestionTime));
         }
 
         _questionTimer.Change(Timeout.Infinite, Timeout.Infinite);
@@ -1280,7 +1280,7 @@ public sealed class GameViewModel : INotifyPropertyChanged, IButtonManagerListen
 
             if (playerIndex >= 0)
             {
-                PresentationController.RunPlayerTimer(playerIndex, ThinkingTimeMax * 10);
+                PresentationController.RunPlayerTimer(playerIndex, ToTenths(ThinkingTimeMax));
             }
         }
     }
@@ -1439,7 +1439,7 @@ public sealed class GameViewModel : INotifyPropertyChanged, IButtonManagerListen
 
         _selectedPlayers.Clear();
 
-        if (Settings.Model.AutomaticGame)
+        if (Settings.Model.EffectiveAutomaticGame)
         {
             Next_Executed();
         }
@@ -1461,7 +1461,7 @@ public sealed class GameViewModel : INotifyPropertyChanged, IButtonManagerListen
         PresentationController.UpdateSettings(Settings.SIUISettings.Model);
         PresentationController.UpdateShowPlayers(Settings.Model.ShowPlayers);
         PresentationController.ClearPlayersState();
-        PresentationController.SetTimerMaxTime(QuestionTimeMax * 10);
+        PresentationController.SetTimerMaxTime(ToTenths(QuestionTimeMax));
 
         if (LocalInfo.RoundInfo.Count > 0)
         {
@@ -1729,14 +1729,14 @@ public sealed class GameViewModel : INotifyPropertyChanged, IButtonManagerListen
 
     public void StartQuestionTimer()
     {
-        if (Settings.Model.ThinkingTime <= 0)
+        if (Settings.Model.EffectiveQuestionTime <= 0)
         {
             return;
         }
 
         // Runs timer in game with false starts
-        QuestionTimeMax = Settings.Model.ThinkingTime;
-        PresentationController.SetTimerMaxTime(QuestionTimeMax * 10);
+        QuestionTimeMax = Settings.Model.EffectiveQuestionTime;
+        PresentationController.SetTimerMaxTime(ToTenths(QuestionTimeMax));
         RunQuestionTimer_Executed(0);
     }
 
@@ -1747,7 +1747,7 @@ public sealed class GameViewModel : INotifyPropertyChanged, IButtonManagerListen
             PresentationController.OnFinalThink();
             _buttonManager?.TryGetCommandExecutor()?.AskTextAnswer();
 
-            var time = Settings.Model.FinalQuestionThinkingTime;
+            var time = Settings.Model.EffectiveFinalQuestionThinkingTime;
 
             if (time > 0)
             {
@@ -1757,7 +1757,7 @@ public sealed class GameViewModel : INotifyPropertyChanged, IButtonManagerListen
         }
         else
         {
-            var time = Settings.Model.SpecialQuestionThinkingTime;
+            var time = Settings.Model.EffectiveSpecialQuestionThinkingTime;
 
             if (time > 0)
             {
@@ -2128,6 +2128,9 @@ public sealed class GameViewModel : INotifyPropertyChanged, IButtonManagerListen
 
     internal void ShowError(string error) => _platformService.ShowMessage(error);
 
+    private static int ToTenths(int seconds) =>
+        seconds >= int.MaxValue / 10 ? int.MaxValue : seconds * 10;
+
     public bool OnKeyPressed(GameKey key)
     {
         var index = Settings.Model.PlayerKeys2.IndexOf(key);
@@ -2275,7 +2278,7 @@ public sealed class GameViewModel : INotifyPropertyChanged, IButtonManagerListen
             StopMediaTimer_Executed(null);
         }
 
-        ThinkingTimeMax = Settings.Model.ThinkingTime2;
+        ThinkingTimeMax = Settings.Model.EffectiveThinkingTime;
         RunThinkingTimer_Executed(0);
 
         BlockNextButtonForAWhile();

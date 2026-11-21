@@ -338,6 +338,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IButtonManagerListen
         switch (e.PropertyName)
         {
             case nameof(AppSettings.UsePlayersKeys):
+            case nameof(AppSettings.SelfHostedMode):
                 Settings.PlayerKeys2.Clear();
                 UpdateCanAddPlayerButton();
                 break;
@@ -392,10 +393,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IButtonManagerListen
 
         return new()
         {
-            IsPressMode = options.FalseStart && options.UsePlayersKeys != PlayerKeysModes.None,
-            IsMultimediaPressMode = options.FalseStart && options.FalseStartMultimedia && options.UsePlayersKeys != PlayerKeysModes.None,
+            IsPressMode = options.EffectiveFalseStart && options.EffectiveUsePlayersKeys != PlayerKeysModes.None,
+            IsMultimediaPressMode = options.EffectiveFalseStart && options.FalseStartMultimedia && options.EffectiveUsePlayersKeys != PlayerKeysModes.None,
             ShowRight = options.ShowRight,
-            PlaySpecials = options.PlaySpecials
+            PlaySpecials = options.EffectivePlaySpecials
         };
     }
 
@@ -454,11 +455,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IButtonManagerListen
             IsStarting = true;
 
             var presentationListener = new PresentationListener();
-            var presentationController = _platformService.CreatePresentationController(screen, presentationListener, Settings.Sounds, !Settings.UseSIGameEngine);
+            var presentationController = _platformService.CreatePresentationController(screen, presentationListener, Settings.Sounds, !Settings.EffectiveUseSIGameEngine);
 
             presentationController.Error += ShowError;
 
-            var game = Settings.UseSIGameEngine 
+            var game = Settings.EffectiveUseSIGameEngine
                 ? await CreateGameNewAsync(presentationController, presentationListener)
                 : await CreateGameAsync(presentationController, presentationListener);
 
@@ -553,8 +554,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IButtonManagerListen
             Managed = true,
             Oral = true,
             ButtonPressMode = SI.Contracts.ButtonPressMode.FirstWins,
-            FalseStart = Settings.FalseStart,
-            PartialText = Settings.PartialText,
+            FalseStart = Settings.EffectiveFalseStart,
+            PartialText = !Settings.SelfHostedMode && Settings.PartialText,
             ReadingSpeed = Settings.QuestionReadingSpeed,
         };
 
@@ -706,7 +707,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IButtonManagerListen
             _platformService,
             false)
         {
-            RoundTimeMax = Settings.RoundTime
+            RoundTimeMax = Settings.EffectiveRoundTime
         };
 
         gameEngineController.GameViewModel = game;
@@ -846,13 +847,13 @@ public sealed class MainViewModel : INotifyPropertyChanged, IButtonManagerListen
 
         try
         {
-            if (Settings.UsePlayersKeys == PlayerKeysModes.Joystick || Settings.UsePlayersKeys == PlayerKeysModes.Com)
+            if (Settings.EffectiveUsePlayersKeys == PlayerKeysModes.Joystick || Settings.EffectiveUsePlayersKeys == PlayerKeysModes.Com)
             {
                 _buttonManager = await _platformService.ButtonManagerFactory.CreateAsync(Settings, this, _platformService);
 
                 if (_buttonManager == null)
                 {
-                    _platformService.ShowMessage($"Could not create button manager for mode {Settings.UsePlayersKeys}");
+                    _platformService.ShowMessage($"Could not create button manager for mode {Settings.EffectiveUsePlayersKeys}");
                     return;
                 }
 
@@ -873,7 +874,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IButtonManagerListen
     public bool OnKeyboardPressed(GameKey key)
     {
         // Задание кнопки для игрока (в настройках)
-        if (_activePlayerButtonCommand == _setPlayerButton && Settings.UsePlayersKeys == PlayerKeysModes.Keyboard)
+        if (_activePlayerButtonCommand == _setPlayerButton && Settings.EffectiveUsePlayersKeys == PlayerKeysModes.Keyboard)
         {
             return ProcessNewPlayerButton(key);
         }
@@ -903,7 +904,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IButtonManagerListen
             {
                 ActivePlayerButtonCommand = _addPlayerButton;
 
-                if (_mode == GameMode.Start && (Settings.UsePlayersKeys == PlayerKeysModes.Joystick || Settings.UsePlayersKeys == PlayerKeysModes.Com) && _buttonManager != null)
+                if (_mode == GameMode.Start && (Settings.EffectiveUsePlayersKeys == PlayerKeysModes.Joystick || Settings.EffectiveUsePlayersKeys == PlayerKeysModes.Com) && _buttonManager != null)
                 {
                     _buttonManager.Stop();
                     await _buttonManager.DisposeAsync();
@@ -998,7 +999,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IButtonManagerListen
         // Может быть не только при this.engine.stage == GameStage.Before, но и в процессе игры
         if (_activePlayerButtonCommand == _setPlayerButton)
         {
-            if (Settings.UsePlayersKeys == PlayerKeysModes.Joystick && _buttonManager != null)
+            if (Settings.EffectiveUsePlayersKeys == PlayerKeysModes.Joystick && _buttonManager != null)
             {
                 ProcessNewPlayerButton(key);
 

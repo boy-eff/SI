@@ -140,7 +140,7 @@ internal sealed class GameEngineController : IQuestionEnginePlayHandler, ISIEngi
     public void OnQuestionContent(IReadOnlyCollection<ContentItem> content, bool isLast)
     {
         var textToShow =
-            GameViewModel.Settings.Model.FalseStart
+            GameViewModel.Settings.Model.EffectiveFalseStart
             ? null
             : $"{GameViewModel.CurrentTheme}\n{GameViewModel.Price}";
 

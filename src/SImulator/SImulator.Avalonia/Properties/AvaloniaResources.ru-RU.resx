@@ -156,4 +156,10 @@
   <data name="MediaRestart" xml:space="preserve">
     <value>Запустить видео/аудио заново</value>
   </data>
+  <data name="SelfHostedMode" xml:space="preserve">
+    <value>Режим «Самосбор»</value>
+  </data>
+  <data name="SelfHostedModeHint" xml:space="preserve">
+    <value>Ручная игра для собравшихся вместе: без спецвопросов, фальстартов, кнопок игроков, автоматизации и ограничений времени.</value>
+  </data>
 </root>

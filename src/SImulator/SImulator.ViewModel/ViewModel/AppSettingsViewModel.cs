@@ -65,7 +65,8 @@ public sealed class AppSettingsViewModel
         }
 
         if (rules)
-        {            
+        {
+            Model.SelfHostedMode = defaultSettings.SelfHostedMode;
             Model.GameMode = defaultSettings.GameMode;
 
             Model.RoundTime = defaultSettings.RoundTime;
