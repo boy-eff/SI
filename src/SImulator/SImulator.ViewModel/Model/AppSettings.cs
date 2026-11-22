@@ -64,6 +64,9 @@ public sealed class AppSettings : INotifyPropertyChanged
     public bool EffectiveAutomaticGame => !SelfHostedMode && AutomaticGame;
 
     [XmlIgnore, JsonIgnore]
+    public bool EffectiveDropStatsOnBack => !SelfHostedMode && DropStatsOnBack;
+
+    [XmlIgnore, JsonIgnore]
     public bool EffectiveUseSIGameEngine => !SelfHostedMode && UseSIGameEngine;
 
     [XmlIgnore, JsonIgnore]

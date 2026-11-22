@@ -75,6 +75,7 @@ public sealed class CommonTests
             FalseStart = true,
             PlaySpecials = true,
             AutomaticGame = true,
+            DropStatsOnBack = true,
             UseSIGameEngine = true,
             UsePlayersKeys = PlayerKeysModes.Keyboard,
         };
@@ -89,6 +90,7 @@ public sealed class CommonTests
             Assert.That(settings.EffectiveFalseStart, Is.False);
             Assert.That(settings.EffectivePlaySpecials, Is.False);
             Assert.That(settings.EffectiveAutomaticGame, Is.False);
+            Assert.That(settings.EffectiveDropStatsOnBack, Is.False);
             Assert.That(settings.EffectiveUseSIGameEngine, Is.False);
             Assert.That(settings.EffectiveUsePlayersKeys, Is.EqualTo(PlayerKeysModes.None));
         });
@@ -105,6 +107,7 @@ public sealed class CommonTests
             Assert.That(settings.EffectiveFalseStart, Is.True);
             Assert.That(settings.EffectivePlaySpecials, Is.True);
             Assert.That(settings.EffectiveAutomaticGame, Is.True);
+            Assert.That(settings.EffectiveDropStatsOnBack, Is.True);
             Assert.That(settings.EffectiveUseSIGameEngine, Is.True);
             Assert.That(settings.EffectiveUsePlayersKeys, Is.EqualTo(PlayerKeysModes.Keyboard));
         });

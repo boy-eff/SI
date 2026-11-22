@@ -1865,7 +1865,7 @@ public sealed class GameViewModel : INotifyPropertyChanged, IButtonManagerListen
         _gameActions.MoveBack();
         ClearState();
 
-        if (Settings.Model.DropStatsOnBack)
+        if (Settings.Model.EffectiveDropStatsOnBack)
         {
             while (_answeringHistory.Count > 0)
             {
