@@ -17,10 +17,32 @@ APPDIR="$OUT/SImulator.AppDir"
 PUBLISH="$APPDIR/usr/bin"
 APPIMAGE="$REPO/bin/appimage/SImulator-$VERSION-x86_64.AppImage"
 DOTNET="${DOTNET:-dotnet}"
-FFMPEG="${FFMPEG:-$(command -v ffmpeg || true)}"
-FFPROBE="${FFPROBE:-$(command -v ffprobe || true)}"
 NUGET_PACKAGES="${NUGET_PACKAGES:-/tmp/simulator-appimage-nuget}"
 NUGET_HTTP_CACHE_PATH="${NUGET_HTTP_CACHE_PATH:-/tmp/simulator-appimage-http-cache}"
+
+# ffmpeg/ffprobe: use FFMPEG/FFPROBE if both are set explicitly,
+# otherwise download a portable static build (cached between runs).
+# The system ffmpeg is intentionally NOT used: it is dynamically linked.
+FFMPEG="${FFMPEG:-}"
+FFPROBE="${FFPROBE:-}"
+FFMPEG_URL="${FFMPEG_URL:-https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz}"
+FFMPEG_CACHE="${FFMPEG_CACHE:-$HOME/.cache/simulator-build/ffmpeg}"
+
+if [[ -z "$FFMPEG" || -z "$FFPROBE" ]]; then
+    if [[ ! -x "$FFMPEG_CACHE/ffmpeg" || ! -x "$FFMPEG_CACHE/ffprobe" ]]; then
+        echo "Downloading static ffmpeg..." >&2
+        TMP="$(mktemp -d)"
+        curl -fL "$FFMPEG_URL" -o "$TMP/ffmpeg.tar.xz"
+        tar -xf "$TMP/ffmpeg.tar.xz" -C "$TMP"
+        mkdir -p "$FFMPEG_CACHE"
+        install -m755 "$TMP"/ffmpeg-*/ffmpeg  "$FFMPEG_CACHE/ffmpeg"
+        install -m755 "$TMP"/ffmpeg-*/ffprobe "$FFMPEG_CACHE/ffprobe"
+        install -m644 "$TMP"/ffmpeg-*/GPLv3.txt "$FFMPEG_CACHE/GPLv3.txt" 2>/dev/null || true
+        rm -rf "$TMP"
+    fi
+    FFMPEG="$FFMPEG_CACHE/ffmpeg"
+    FFPROBE="$FFMPEG_CACHE/ffprobe"
+fi
 
 rm -rf "$OUT"
 mkdir -p "$PUBLISH" "$APPDIR/usr/share/applications" "$APPDIR/usr/share/icons/hicolor/256x256/apps"
@@ -31,13 +53,16 @@ NUGET_PACKAGES="$NUGET_PACKAGES" NUGET_HTTP_CACHE_PATH="$NUGET_HTTP_CACHE_PATH" 
     -p:PublishSingleFile=false -p:UseAppHost=true -p:SignAssembly=false \
     -o "$PUBLISH"
 
-if [[ -z "$FFMPEG" || -z "$FFPROBE" ]]; then
-    echo "ffmpeg and ffprobe were not found. Set FFMPEG and FFPROBE to portable Linux binaries." >&2
-    exit 4
-fi
-
 install -Dm755 "$FFMPEG" "$PUBLISH/ffmpeg"
 install -Dm755 "$FFPROBE" "$PUBLISH/ffprobe"
+
+# FFmpeg license (static builds are GPL because of libx264)
+mkdir -p "$APPDIR/usr/share/licenses/ffmpeg"
+LICENSE_SRC="$(dirname "$FFMPEG")/GPLv3.txt"
+if [[ -f "$LICENSE_SRC" ]]; then
+    install -Dm644 "$LICENSE_SRC" "$APPDIR/usr/share/licenses/ffmpeg/GPLv3.txt"
+fi
+echo "FFmpeg static build from $FFMPEG_URL" > "$APPDIR/usr/share/licenses/ffmpeg/SOURCE.txt"
 
 install -Dm644 "$HERE/../SImulator/Images/logo.png" "$APPDIR/SImulator.png"
 install -Dm644 "$HERE/../SImulator/Images/logo.png" "$APPDIR/usr/share/icons/hicolor/256x256/apps/SImulator.png"

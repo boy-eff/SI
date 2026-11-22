@@ -149,7 +149,7 @@ internal sealed class RemoteBoardServer : IAsyncDisposable
 
         var contentTypes = new FileExtensionContentTypeProvider();
 
-        app.MapGet("/media/{id}", async (string id) =>
+        app.MapGet("/media/{id}", async (HttpContext context, string id) =>
         {
             if (!server._mediaPathsById.TryGetValue(id, out var path) || !File.Exists(path))
             {
@@ -158,7 +158,9 @@ internal sealed class RemoteBoardServer : IAsyncDisposable
 
             if (server._videoIds.ContainsKey(id))
             {
+                var originalPath = path;
                 path = await server.GetBrowserCompatibleVideoAsync(id, path);
+                context.Response.Headers["X-SImulator-Video"] = path == originalPath ? "original" : "transcoded";
             }
 
             if (!contentTypes.TryGetContentType(path, out var contentType))
@@ -350,9 +352,7 @@ internal sealed class RemoteBoardServer : IAsyncDisposable
                 foreach (var key in obj.Select(p => p.Key).ToArray())
                 {
                     var isVideo = key.Equals("value", StringComparison.OrdinalIgnoreCase)
-                        && obj["type"] is JsonValue type
-                        && type.TryGetValue<int>(out var contentType)
-                        && contentType == 3;
+                        && IsVideoContent(obj);
 
                     if (obj[key] is { } child && TryRewriteValue(child, isVideo) is { } replacement)
                     {
@@ -383,6 +383,15 @@ internal sealed class RemoteBoardServer : IAsyncDisposable
         }
     }
 
+    private static bool IsVideoContent(JsonObject obj)
+    {
+        var type = obj.FirstOrDefault(property => property.Key.Equals("type", StringComparison.OrdinalIgnoreCase)).Value;
+
+        return type is JsonValue value
+            && ((value.TryGetValue<int>(out var numericType) && numericType == 3)
+                || (value.TryGetValue<string>(out var stringType) && stringType.Equals("video", StringComparison.OrdinalIgnoreCase)));
+    }
+
     private JsonNode? TryRewriteValue(JsonNode node, bool isVideo)
     {
         if (node is not JsonValue value || !value.TryGetValue<string>(out var text) || !TryGetLocalPath(text, out var path))
@@ -393,13 +402,19 @@ internal sealed class RemoteBoardServer : IAsyncDisposable
         var id = _mediaIdsByPath.GetOrAdd(path, _ => Convert.ToHexString(RandomNumberGenerator.GetBytes(16)));
         _mediaPathsById[id] = path;
 
-        if (isVideo)
+        if (isVideo || IsLikelyVideoPath(path))
         {
             _videoIds[id] = 0;
         }
 
         return JsonValue.Create($"/media/{id}");
     }
+
+    private static bool IsLikelyVideoPath(string path) => Path.GetExtension(path).ToLowerInvariant() switch
+    {
+        ".avi" or ".m4v" or ".mkv" or ".mov" or ".mp4" or ".mpeg" or ".mpg" or ".ogv" or ".webm" or ".wmv" => true,
+        _ => false,
+    };
 
     private Task<string> GetBrowserCompatibleVideoAsync(string id, string sourcePath) =>
         _preparedVideos.GetOrAdd(
@@ -414,12 +429,15 @@ internal sealed class RemoteBoardServer : IAsyncDisposable
 
         try
         {
+            Directory.CreateDirectory(_mediaTempDirectory);
+            Trace.TraceInformation($"Preparing browser video '{sourcePath}' in '{_mediaTempDirectory}'");
+
             if (await IsBrowserCompatibleAsync(sourcePath))
             {
+                Trace.TraceInformation($"Video '{sourcePath}' is already browser-compatible");
                 return sourcePath;
             }
 
-            Directory.CreateDirectory(_mediaTempDirectory);
             var outputPath = Path.Combine(_mediaTempDirectory, $"{id}.mp4");
             temporaryPath = outputPath + ".tmp";
             var startInfo = CreateToolStartInfo("ffmpeg");
@@ -446,6 +464,7 @@ internal sealed class RemoteBoardServer : IAsyncDisposable
 
             File.Move(temporaryPath, outputPath, true);
             temporaryPath = null;
+            Trace.TraceInformation($"Video '{sourcePath}' was transcoded to '{outputPath}'");
             return outputPath;
         }
         catch (Exception exc)
@@ -500,7 +519,10 @@ internal sealed class RemoteBoardServer : IAsyncDisposable
     private static ProcessStartInfo CreateToolStartInfo(string toolName)
     {
         var bundledPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, toolName);
-        return new ProcessStartInfo(File.Exists(bundledPath) ? bundledPath : toolName)
+        var toolPath = File.Exists(bundledPath) ? bundledPath : toolName;
+        Trace.TraceInformation($"Using {toolName}: {toolPath}");
+
+        return new ProcessStartInfo(toolPath)
         {
             UseShellExecute = false,
             RedirectStandardOutput = true,
